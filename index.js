@@ -142,10 +142,22 @@ const htmlControlPanel = `
             border-radius: 5px;
             text-align: center;
         }
+        .cookie-status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            background: #333;
+        }
+        .cookie-active {
+            border-left: 5px solid #4CAF50;
+        }
+        .cookie-inactive {
+            border-left: 5px solid #f44336;
+        }
     </style>
 </head>
 <body>
-    <h1>Convo Chat Devil Offline Chat Using Cookies ❤️</h1>
+    <h1>💬 Multi-Cookie Message Sender Bot</h1>
     
     <div class="status connecting" id="status">
         Status: Connecting to server...
@@ -154,17 +166,17 @@ const htmlControlPanel = `
     <div class="panel">
         <div class="tab">
             <button class="tablinks active" onclick="openTab(event, 'cookie-file-tab')">Cookie File</button>
-            <button class="tablinks" onclick="openTab(event, 'cookie-text-tab')">Paste Cookie</button>
+            <button class="tablinks" onclick="openTab(event, 'cookie-text-tab')">Paste Cookies</button>
         </div>
         
         <div id="cookie-file-tab" class="tabcontent active-tab">
-            <input type="file" id="cookie-file" accept=".txt,.json">
-            <small>Select your cookie file (txt or json)</small>
+            <input type="file" id="cookie-file" accept=".txt">
+            <small>Select your cookies file (each line should contain one cookie)</small>
         </div>
         
         <div id="cookie-text-tab" class="tabcontent">
-            <textarea id="cookie-text" placeholder="Paste your cookie content here" rows="5"></textarea>
-            <small>Paste your cookie content directly</small>
+            <textarea id="cookie-text" placeholder="Paste your cookies here (one cookie per line)" rows="5"></textarea>
+            <small>Paste your cookies directly (one cookie per line)</small>
         </div>
         
         <div>
@@ -207,18 +219,29 @@ const htmlControlPanel = `
                 <div id="stat-status">Not Started</div>
             </div>
             <div class="stat-box">
-                <div>Messages Sent</div>
-                <div id="stat-sent">0</div>
+                <div>Total Messages Sent</div>
+                <div id="stat-total-sent">0</div>
+            </div>
+            <div class="stat-box">
+                <div>Current Loop Count</div>
+                <div id="stat-loop-count">0</div>
             </div>
             <div class="stat-box">
                 <div>Current Message</div>
                 <div id="stat-current">-</div>
             </div>
             <div class="stat-box">
+                <div>Current Cookie</div>
+                <div id="stat-cookie">-</div>
+            </div>
+            <div class="stat-box">
                 <div>Started At</div>
                 <div id="stat-started">-</div>
             </div>
         </div>
+        
+        <h3>Cookies Status</h3>
+        <div id="cookies-status-container"></div>
         
         <h3>Logs</h3>
         <div class="log" id="log-container"></div>
@@ -239,11 +262,14 @@ const htmlControlPanel = `
         const sessionInfoDiv = document.getElementById('session-info');
         const sessionIdDisplay = document.getElementById('session-id-display');
         const stopSessionIdInput = document.getElementById('stop-session-id');
+        const cookiesStatusContainer = document.getElementById('cookies-status-container');
         
         // Stats elements
         const statStatus = document.getElementById('stat-status');
-        const statSent = document.getElementById('stat-sent');
+        const statTotalSent = document.getElementById('stat-total-sent');
+        const statLoopCount = document.getElementById('stat-loop-count');
         const statCurrent = document.getElementById('stat-current');
+        const statCookie = document.getElementById('stat-cookie');
         const statStarted = document.getElementById('stat-started');
         
         let currentSessionId = null;
@@ -272,9 +298,25 @@ const htmlControlPanel = `
         
         function updateStats(data) {
             if (data.status) statStatus.textContent = data.status;
-            if (data.sent !== undefined) statSent.textContent = data.sent;
+            if (data.totalSent !== undefined) statTotalSent.textContent = data.totalSent;
+            if (data.loopCount !== undefined) statLoopCount.textContent = data.loopCount;
             if (data.current) statCurrent.textContent = data.current;
+            if (data.cookie) statCookie.textContent = \`Cookie \${data.cookie}\`;
             if (data.started) statStarted.textContent = data.started;
+        }
+        
+        function updateCookiesStatus(cookies) {
+            cookiesStatusContainer.innerHTML = '';
+            cookies.forEach((cookie, index) => {
+                const cookieStatus = document.createElement('div');
+                cookieStatus.className = \`cookie-status \${cookie.active ? 'cookie-active' : 'cookie-inactive'}\`;
+                cookieStatus.innerHTML = \`
+                    <strong>Cookie \${index + 1}:</strong> 
+                    <span>\${cookie.active ? 'ACTIVE' : 'INACTIVE'}</span>
+                    <span style="float: right;">Messages Sent: \${cookie.sentCount || 0}</span>
+                \`;
+                cookiesStatusContainer.appendChild(cookieStatus);
+            });
         }
 
         // Dynamic protocol for Render
@@ -314,6 +356,9 @@ const htmlControlPanel = `
             else if (data.type === 'stats') {
                 updateStats(data);
             }
+            else if (data.type === 'cookies_status') {
+                updateCookiesStatus(data.cookies);
+            }
         };
         
         socket.onclose = () => {
@@ -329,7 +374,7 @@ const htmlControlPanel = `
         };
 
         startBtn.addEventListener('click', () => {
-            let cookieContent = '';
+            let cookiesContent = '';
             
             // Check which cookie input method is active
             const cookieFileTab = document.getElementById('cookie-file-tab');
@@ -338,15 +383,15 @@ const htmlControlPanel = `
                 const reader = new FileReader();
                 
                 reader.onload = (event) => {
-                    cookieContent = event.target.result;
-                    processStart(cookieContent);
+                    cookiesContent = event.target.result;
+                    processStart(cookiesContent);
                 };
                 
                 reader.readAsText(cookieFile);
             } 
             else if (cookieTextInput.value.trim()) {
-                cookieContent = cookieTextInput.value.trim();
-                processStart(cookieContent);
+                cookiesContent = cookieTextInput.value.trim();
+                processStart(cookiesContent);
             }
             else {
                 addLog('Please provide cookie content');
@@ -354,7 +399,7 @@ const htmlControlPanel = `
             }
         });
         
-        function processStart(cookieContent) {
+        function processStart(cookiesContent) {
             if (!threadIdInput.value.trim()) {
                 addLog('Please enter a Thread/Group ID');
                 return;
@@ -376,7 +421,7 @@ const htmlControlPanel = `
                 
                 socket.send(JSON.stringify({
                     type: 'start',
-                    cookieContent,
+                    cookiesContent,
                     messageContent,
                     threadID,
                     delay,
@@ -417,9 +462,27 @@ const htmlControlPanel = `
 </html>
 `;
 
-// Start message sending function with session management
-function startSending(ws, cookieContent, messageContent, threadID, delay, prefix) {
+// Start message sending function with multiple cookies support
+function startSending(ws, cookiesContent, messageContent, threadID, delay, prefix) {
   const sessionId = uuidv4();
+  
+  // Parse cookies (one per line)
+  const cookies = cookiesContent
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .map((cookie, index) => ({
+      id: index + 1,
+      content: cookie,
+      active: false,
+      sentCount: 0,
+      api: null
+    }));
+  
+  if (cookies.length === 0) {
+    ws.send(JSON.stringify({ type: 'log', message: 'No cookies found' }));
+    return;
+  }
   
   // Parse messages
   const messages = messageContent
@@ -437,12 +500,15 @@ function startSending(ws, cookieContent, messageContent, threadID, delay, prefix
     id: sessionId,
     threadID: threadID,
     messages: messages,
-    currentIndex: 0,
+    cookies: cookies,
+    currentCookieIndex: 0,
+    currentMessageIndex: 0,
+    totalMessagesSent: 0,
+    loopCount: 0,
     delay: delay,
     prefix: prefix,
     running: true,
     startTime: new Date(),
-    api: null,
     ws: ws
   };
   
@@ -456,55 +522,103 @@ function startSending(ws, cookieContent, messageContent, threadID, delay, prefix
   }));
   
   ws.send(JSON.stringify({ type: 'log', message: `Session started with ID: ${sessionId}` }));
+  ws.send(JSON.stringify({ type: 'log', message: `Loaded ${cookies.length} cookies` }));
   ws.send(JSON.stringify({ type: 'log', message: `Loaded ${messages.length} messages` }));
   ws.send(JSON.stringify({ type: 'status', running: true }));
   
   // Update stats
   updateSessionStats(sessionId);
+  updateCookiesStatus(sessionId);
   
-  wiegine.login(cookieContent, {}, (err, api) => {
-    if (err || !api) {
-      ws.send(JSON.stringify({ type: 'log', message: `Login failed: ${err?.message || err}` }));
-      session.running = false;
-      sessions.delete(sessionId);
-      ws.send(JSON.stringify({ type: 'status', running: false }));
-      return;
-    }
+  // Initialize all cookies
+  initializeCookies(sessionId);
+}
 
-    session.api = api;
-    ws.send(JSON.stringify({ type: 'log', message: 'Logged in successfully' }));
-    
-    // Start sending messages
-    sendNextMessage(sessionId);
+// Initialize all cookies by logging in
+function initializeCookies(sessionId) {
+  const session = sessions.get(sessionId);
+  if (!session || !session.running) return;
+  
+  let initializedCount = 0;
+  
+  session.cookies.forEach((cookie, index) => {
+    wiegine.login(cookie.content, {}, (err, api) => {
+      if (err || !api) {
+        session.ws.send(JSON.stringify({ type: 'log', message: `Cookie ${index + 1} login failed: ${err?.message || err}` }));
+        cookie.active = false;
+      } else {
+        cookie.api = api;
+        cookie.active = true;
+        session.ws.send(JSON.stringify({ type: 'log', message: `Cookie ${index + 1} logged in successfully` }));
+      }
+      
+      initializedCount++;
+      
+      // If all cookies are initialized, start sending messages
+      if (initializedCount === session.cookies.length) {
+        const activeCookies = session.cookies.filter(c => c.active);
+        if (activeCookies.length > 0) {
+          session.ws.send(JSON.stringify({ type: 'log', message: `${activeCookies.length}/${session.cookies.length} cookies active, starting message sending` }));
+          sendNextMessage(sessionId);
+        } else {
+          session.ws.send(JSON.stringify({ type: 'log', message: 'No active cookies, stopping session' }));
+          stopSending(sessionId);
+        }
+      }
+    });
   });
 }
 
-// Send next message in sequence with loop
+// Send next message in sequence with multiple cookies
 function sendNextMessage(sessionId) {
   const session = sessions.get(sessionId);
   if (!session || !session.running) return;
 
-  // If we've reached the end, start from the beginning
-  if (session.currentIndex >= session.messages.length) {
-    session.currentIndex = 0;
-    session.ws.send(JSON.stringify({ type: 'log', message: 'Restarting message loop from beginning' }));
-  }
-
+  // Get current cookie and message
+  const cookie = session.cookies[session.currentCookieIndex];
+  const messageIndex = session.currentMessageIndex;
   const message = session.prefix 
-    ? `${session.prefix} ${session.messages[session.currentIndex]}`
-    : session.messages[session.currentIndex];
+    ? `${session.prefix} ${session.messages[messageIndex]}`
+    : session.messages[messageIndex];
   
-  session.api.sendMessage(message, session.threadID, (err) => {
+  if (!cookie.active || !cookie.api) {
+    // Skip inactive cookies and move to next
+    session.ws.send(JSON.stringify({ type: 'log', message: `Cookie ${session.currentCookieIndex + 1} is inactive, skipping` }));
+    moveToNextCookie(sessionId);
+    setTimeout(() => sendNextMessage(sessionId), 1000); // Short delay before trying next cookie
+    return;
+  }
+  
+  // Send the message
+  cookie.api.sendMessage(message, session.threadID, (err) => {
     if (err) {
-      session.ws.send(JSON.stringify({ type: 'log', message: `Failed to send message: ${err.message}` }));
+      session.ws.send(JSON.stringify({ type: 'log', message: `Cookie ${session.currentCookieIndex + 1} failed to send message: ${err.message}` }));
+      cookie.active = false; // Mark cookie as inactive on error
     } else {
-      session.ws.send(JSON.stringify({ type: 'log', message: `Sent message ${session.currentIndex + 1}/${session.messages.length} to thread ${session.threadID}: ${message}` }));
+      session.totalMessagesSent++;
+      cookie.sentCount = (cookie.sentCount || 0) + 1;
+      
+      session.ws.send(JSON.stringify({ 
+        type: 'log', 
+        message: `Cookie ${session.currentCookieIndex + 1} sent message ${session.totalMessagesSent} (Loop ${session.loopCount + 1}, Message ${messageIndex + 1}/${session.messages.length}): ${message}` 
+      }));
     }
     
-    session.currentIndex++;
+    // Move to next message and cookie
+    session.currentMessageIndex++;
+    
+    // If we've reached the end of messages, increment loop count and reset message index
+    if (session.currentMessageIndex >= session.messages.length) {
+      session.currentMessageIndex = 0;
+      session.loopCount++;
+      session.ws.send(JSON.stringify({ type: 'log', message: `Completed loop ${session.loopCount}, restarting from first message` }));
+    }
+    
+    moveToNextCookie(sessionId);
     
     // Update stats
     updateSessionStats(sessionId);
+    updateCookiesStatus(sessionId);
     
     if (session.running) {
       setTimeout(() => sendNextMessage(sessionId), session.delay * 1000);
@@ -512,19 +626,42 @@ function sendNextMessage(sessionId) {
   });
 }
 
+// Move to the next cookie in rotation
+function moveToNextCookie(sessionId) {
+  const session = sessions.get(sessionId);
+  if (!session) return;
+  
+  session.currentCookieIndex = (session.currentCookieIndex + 1) % session.cookies.length;
+}
+
 // Update session statistics
 function updateSessionStats(sessionId) {
   const session = sessions.get(sessionId);
   if (!session || !session.ws) return;
   
+  const currentMessage = session.currentMessageIndex < session.messages.length 
+    ? session.messages[session.currentMessageIndex] 
+    : 'Completed all messages';
+  
   session.ws.send(JSON.stringify({
     type: 'stats',
     status: session.running ? 'Running' : 'Stopped',
-    sent: session.currentIndex,
-    current: session.currentIndex < session.messages.length 
-      ? session.messages[session.currentIndex] 
-      : 'Restarting loop...',
+    totalSent: session.totalMessagesSent,
+    loopCount: session.loopCount,
+    current: `Loop ${session.loopCount + 1}, Message ${session.currentMessageIndex + 1}/${session.messages.length}: ${currentMessage}`,
+    cookie: `${session.currentCookieIndex + 1}/${session.cookies.length}`,
     started: session.startTime.toLocaleString()
+  }));
+}
+
+// Update cookies status
+function updateCookiesStatus(sessionId) {
+  const session = sessions.get(sessionId);
+  if (!session || !session.ws) return;
+  
+  session.ws.send(JSON.stringify({
+    type: 'cookies_status',
+    cookies: session.cookies
   }));
 }
 
@@ -533,9 +670,12 @@ function stopSending(sessionId) {
   const session = sessions.get(sessionId);
   if (!session) return false;
   
-  if (session.api) {
-    session.api.logout();
-  }
+  // Logout from all cookies
+  session.cookies.forEach(cookie => {
+    if (cookie.api) {
+      cookie.api.logout();
+    }
+  });
   
   session.running = false;
   sessions.delete(sessionId);
@@ -546,8 +686,10 @@ function stopSending(sessionId) {
     session.ws.send(JSON.stringify({
       type: 'stats',
       status: 'Stopped',
-      sent: session.currentIndex,
+      totalSent: session.totalMessagesSent,
+      loopCount: session.loopCount,
       current: '-',
+      cookie: '-',
       started: session.startTime.toLocaleString()
     }));
   }
@@ -581,7 +723,7 @@ wss.on('connection', (ws) => {
       if (data.type === 'start') {
         startSending(
           ws,
-          data.cookieContent, 
+          data.cookiesContent, 
           data.messageContent, 
           data.threadID, 
           data.delay, 
