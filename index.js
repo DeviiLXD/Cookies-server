@@ -12,169 +12,212 @@ const PORT = process.env.PORT || 3000;
 const sessions = new Map();
 let wss;
 
-// HTML Control Panel
+// HTML Control Panel with improved logging
 const htmlControlPanel = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Message Sender Bot</title>
+    <title>💌 Stable Message Sender Bot</title>
     <style>
+        :root {
+            --color1: #FF9EC5;
+            --color2: #9ED2FF;
+            --color3: #FFFFFF;
+            --color4: #FFB6D9;
+            --text-dark: #333333;
+        }
+        
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
-            background-color: #1a1a1a;
-            color: #e0e0e0;
+            background: linear-gradient(135deg, var(--color1) 0%, var(--color2) 100%);
+            color: var(--text-dark);
+            line-height: 1.6;
         }
-        .status {
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 5px;
-            font-weight: bold;
+        
+        .header {
             text-align: center;
-        }
-        .online { background: #4CAF50; color: white; }
-        .offline { background: #f44336; color: white; }
-        .connecting { background: #ff9800; color: white; }
-        .server-connected { background: #2196F3; color: white; }
-        .panel {
-            background: #2d2d2d;
+            margin-bottom: 25px;
             padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
         }
+        
+        .panel {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            margin-bottom: 25px;
+            backdrop-filter: blur(5px);
+        }
+        
         button {
-            padding: 10px 15px;
-            margin: 5px;
+            padding: 12px 20px;
+            margin: 8px;
             cursor: pointer;
-            background: #2196F3;
-            color: white;
+            background: linear-gradient(135deg, var(--color2) 0%, var(--color1) 100%);
+            color: var(--text-dark);
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             transition: all 0.3s;
+            font-weight: bold;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
         }
+        
         button:hover {
-            background: #0b7dda;
-            transform: scale(1.02);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
         }
+        
         button:disabled {
-            background: #555555;
+            background: #cccccc;
             cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
+        
         input, select, textarea {
-            padding: 10px;
-            margin: 5px 0;
+            padding: 12px 15px;
+            margin: 8px 0;
             width: 100%;
-            border: 1px solid #444;
-            border-radius: 4px;
-            background: #333;
-            color: white;
+            border: 2px solid var(--color2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.8);
+            color: var(--text-dark);
+            font-size: 16px;
+            transition: all 0.3s;
+            box-sizing: border-box;
         }
+        
         .log {
             height: 300px;
             overflow-y: auto;
-            border: 1px solid #444;
-            padding: 10px;
+            border: 2px solid var(--color2);
+            padding: 15px;
             margin-top: 20px;
-            font-family: monospace;
-            background: #222;
-            color: #00ff00;
-            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.9);
+            color: #ffffff;
+            border-radius: 10px;
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.2);
         }
-        small {
-            color: #888;
-            font-size: 12px;
+        
+        .log-success {
+            color: #4CAF50;
         }
-        h1, h2, h3 {
+        
+        .log-error {
+            color: #f44336;
+        }
+        
+        .log-warning {
+            color: #ff9800;
+        }
+        
+        .log-info {
             color: #2196F3;
         }
+        
+        small {
+            color: #666;
+            font-size: 13px;
+        }
+        
+        h1, h2, h3 {
+            color: var(--text-dark);
+            margin-top: 0;
+        }
+        
         .session-info {
-            background: #333;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 10px;
-        }
-        .tab {
-            overflow: hidden;
-            border: 1px solid #444;
-            background-color: #2d2d2d;
-            border-radius: 4px;
+            background: linear-gradient(135deg, var(--color2) 0%, var(--color1) 100%);
+            padding: 15px;
+            border-radius: 10px;
             margin-bottom: 15px;
+            color: var(--text-dark);
         }
-        .tab button {
-            background-color: inherit;
-            float: left;
-            border: none;
-            outline: none;
-            cursor: pointer;
-            padding: 14px 16px;
-            transition: 0.3s;
-        }
-        .tab button:hover {
-            background-color: #444;
-        }
-        .tab button.active {
-            background-color: #2196F3;
-        }
-        .tabcontent {
-            display: none;
-            padding: 6px 12px;
-            border: 1px solid #444;
-            border-top: none;
-            border-radius: 0 0 4px 4px;
-        }
-        .active-tab {
-            display: block;
-        }
+        
         .stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-            margin-bottom: 15px;
+            gap: 15px;
+            margin-bottom: 20px;
         }
+        
         .stat-box {
-            background: #333;
-            padding: 10px;
-            border-radius: 5px;
+            background: linear-gradient(135deg, var(--color2) 0%, var(--color1) 100%);
+            padding: 15px;
+            border-radius: 10px;
             text-align: center;
+            color: var(--text-dark);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
         }
+        
         .cookie-status {
-            margin-top: 10px;
-            padding: 10px;
-            border-radius: 5px;
-            background: #333;
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
+        
         .cookie-active {
             border-left: 5px solid #4CAF50;
         }
+        
         .cookie-inactive {
             border-left: 5px solid #f44336;
+        }
+        
+        .heart {
+            color: var(--color4);
+            margin: 0 5px;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: var(--text-dark);
+            font-size: 14px;
+        }
+        
+        .session-manager {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, var(--color1) 0%, var(--color2) 100%);
+            border-radius: 10px;
         }
     </style>
 </head>
 <body>
-    <h1>💬 Multi-Cookie Message Sender Bot</h1>
-    
-    <div class="status connecting" id="status">
-        Status: Connecting to server...
+    <div class="header">
+        <h1><span class="heart">💌</span> Stable Message Sender Bot <span class="heart">💌</span></h1>
+        <p>Send messages automatically - No auto disconnections or logouts</p>
     </div>
     
     <div class="panel">
-        <div class="tab">
-            <button class="tablinks active" onclick="openTab(event, 'cookie-file-tab')">Cookie File</button>
-            <button class="tablinks" onclick="openTab(event, 'cookie-text-tab')">Paste Cookies</button>
-        </div>
-        
-        <div id="cookie-file-tab" class="tabcontent active-tab">
-            <input type="file" id="cookie-file" accept=".txt">
-            <small>Select your cookies file (each line should contain one cookie)</small>
-        </div>
-        
-        <div id="cookie-text-tab" class="tabcontent">
+        <div>
             <textarea id="cookie-text" placeholder="Paste your cookies here (one cookie per line)" rows="5"></textarea>
             <small>Paste your cookies directly (one cookie per line)</small>
         </div>
@@ -195,24 +238,60 @@ const htmlControlPanel = `
         </div>
         
         <div>
-            <label for="message-file">Messages File</label>
-            <input type="file" id="message-file" accept=".txt">
-            <small>Upload messages.txt file with messages (one per line)</small>
+            <textarea id="message-text" placeholder="Enter messages here (one message per line)" rows="5"></textarea>
+            <small>Enter messages to send (one per line)</small>
         </div>
         
-        <button id="start-btn">Start Sending</button>
-        <button id="stop-btn" disabled>Stop Sending</button>
+        <div style="text-align: center;">
+            <button id="start-btn">Start Sending <span class="heart">💌</span></button>
+            <button id="stop-btn" disabled>Stop Sending <span class="heart">💔</span></button>
+        </div>
         
         <div id="session-info" style="display: none;" class="session-info">
             <h3>Your Session ID: <span id="session-id-display"></span></h3>
-            <p>Save this ID to stop your session later</p>
-            <input type="text" id="stop-session-id" placeholder="Enter Session ID to stop">
-            <button id="stop-specific-btn">Stop Specific Session</button>
+            <p>Save this ID to stop your session later or view its details</p>
+        </div>
+    </div>
+    
+    <div class="panel session-manager">
+        <h3><span class="heart">🔍</span> Session Manager</h3>
+        <p>Enter your Session ID to manage your running session</p>
+        
+        <input type="text" id="manage-session-id" placeholder="Enter your Session ID">
+        
+        <div style="text-align: center; margin-top: 15px;">
+            <button id="view-session-btn">View Session Details</button>
+            <button id="stop-session-btn">Stop Session</button>
+        </div>
+        
+        <div id="session-details" style="display: none; margin-top: 20px;">
+            <h4>Session Details</h4>
+            <div class="stats">
+                <div class="stat-box">
+                    <div>Status</div>
+                    <div id="detail-status">-</div>
+                </div>
+                <div class="stat-box">
+                    <div>Total Messages Sent</div>
+                    <div id="detail-total-sent">-</div>
+                </div>
+                <div class="stat-box">
+                    <div>Current Loop Count</div>
+                    <div id="detail-loop-count">-</div>
+                </div>
+                <div class="stat-box">
+                    <div>Started At</div>
+                    <div id="detail-started">-</div>
+                </div>
+            </div>
+            
+            <h4>Session Logs</h4>
+            <div class="log" id="detail-log-container"></div>
         </div>
     </div>
     
     <div class="panel">
-        <h3>Session Statistics</h3>
+        <h3><span class="heart">📊</span> Active Session Statistics</h3>
         <div class="stats" id="stats-container">
             <div class="stat-box">
                 <div>Status</div>
@@ -227,198 +306,185 @@ const htmlControlPanel = `
                 <div id="stat-loop-count">0</div>
             </div>
             <div class="stat-box">
-                <div>Current Message</div>
-                <div id="stat-current">-</div>
-            </div>
-            <div class="stat-box">
-                <div>Current Cookie</div>
-                <div id="stat-cookie">-</div>
-            </div>
-            <div class="stat-box">
                 <div>Started At</div>
                 <div id="stat-started">-</div>
             </div>
         </div>
         
-        <h3>Cookies Status</h3>
-        <div id="cookies-status-container"></div>
-        
-        <h3>Logs</h3>
+        <h3><span class="heart">📝</span> Live Message Logs</h3>
         <div class="log" id="log-container"></div>
+    </div>
+
+    <div class="footer">
+        <p>Made with <span class="heart">💌</span> | Stable messaging without auto-disconnections</p>
     </div>
 
     <script>
         const logContainer = document.getElementById('log-container');
-        const statusDiv = document.getElementById('status');
         const startBtn = document.getElementById('start-btn');
         const stopBtn = document.getElementById('stop-btn');
-        const stopSpecificBtn = document.getElementById('stop-specific-btn');
-        const cookieFileInput = document.getElementById('cookie-file');
         const cookieTextInput = document.getElementById('cookie-text');
         const threadIdInput = document.getElementById('thread-id');
         const delayInput = document.getElementById('delay');
         const prefixInput = document.getElementById('prefix');
-        const messageFileInput = document.getElementById('message-file');
+        const messageTextInput = document.getElementById('message-text');
         const sessionInfoDiv = document.getElementById('session-info');
         const sessionIdDisplay = document.getElementById('session-id-display');
-        const stopSessionIdInput = document.getElementById('stop-session-id');
-        const cookiesStatusContainer = document.getElementById('cookies-status-container');
+        
+        // Session manager elements
+        const manageSessionIdInput = document.getElementById('manage-session-id');
+        const viewSessionBtn = document.getElementById('view-session-btn');
+        const stopSessionBtn = document.getElementById('stop-session-btn');
+        const sessionDetailsDiv = document.getElementById('session-details');
+        const detailStatus = document.getElementById('detail-status');
+        const detailTotalSent = document.getElementById('detail-total-sent');
+        const detailLoopCount = document.getElementById('detail-loop-count');
+        const detailStarted = document.getElementById('detail-started');
+        const detailLogContainer = document.getElementById('detail-log-container');
         
         // Stats elements
         const statStatus = document.getElementById('stat-status');
         const statTotalSent = document.getElementById('stat-total-sent');
         const statLoopCount = document.getElementById('stat-loop-count');
-        const statCurrent = document.getElementById('stat-current');
-        const statCookie = document.getElementById('stat-cookie');
         const statStarted = document.getElementById('stat-started');
         
         let currentSessionId = null;
+        let socket = null;
+        let sessionLogs = new Map();
 
-        function openTab(evt, tabName) {
-            const tabcontent = document.getElementsByClassName("tabcontent");
-            for (let i = 0; i < tabcontent.length; i++) {
-                tabcontent[i].style.display = "none";
-            }
-            
-            const tablinks = document.getElementsByClassName("tablinks");
-            for (let i = 0; i < tablinks.length; i++) {
-                tablinks[i].className = tablinks[i].className.replace(" active", "");
-            }
-            
-            document.getElementById(tabName).style.display = "block";
-            evt.currentTarget.className += " active";
-        }
-
-        function addLog(message, type = 'info') {
-            const logEntry = document.createElement('div');
-            logEntry.textContent = \`[\${new Date().toLocaleTimeString()}] \${message}\`;
-            logContainer.appendChild(logEntry);
-            logContainer.scrollTop = logContainer.scrollHeight;
-        }
-        
-        function updateStats(data) {
-            if (data.status) statStatus.textContent = data.status;
-            if (data.totalSent !== undefined) statTotalSent.textContent = data.totalSent;
-            if (data.loopCount !== undefined) statLoopCount.textContent = data.loopCount;
-            if (data.current) statCurrent.textContent = data.current;
-            if (data.cookie) statCookie.textContent = \`Cookie \${data.cookie}\`;
-            if (data.started) statStarted.textContent = data.started;
-        }
-        
-        function updateCookiesStatus(cookies) {
-            cookiesStatusContainer.innerHTML = '';
-            cookies.forEach((cookie, index) => {
-                const cookieStatus = document.createElement('div');
-                cookieStatus.className = \`cookie-status \${cookie.active ? 'cookie-active' : 'cookie-inactive'}\`;
-                cookieStatus.innerHTML = \`
-                    <strong>Cookie \${index + 1}:</strong> 
-                    <span>\${cookie.active ? 'ACTIVE' : 'INACTIVE'}</span>
-                    <span style="float: right;">Messages Sent: \${cookie.sentCount || 0}</span>
-                \`;
-                cookiesStatusContainer.appendChild(cookieStatus);
+        function addLog(message, type = 'info', sessionId = null) {
+            const timestamp = new Date().toLocaleString('en-IN', { 
+                timeZone: 'Asia/Kolkata',
+                hour12: true,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
             });
+            
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = \`[\${timestamp}] \${message}\`;
+            logEntry.className = \`log-\${type}\`;
+            
+            if (sessionId) {
+                if (!sessionLogs.has(sessionId)) {
+                    sessionLogs.set(sessionId, []);
+                }
+                sessionLogs.get(sessionId).push({message, type, timestamp});
+                
+                if (manageSessionIdInput.value === sessionId) {
+                    detailLogContainer.appendChild(logEntry.cloneNode(true));
+                    detailLogContainer.scrollTop = detailLogContainer.scrollHeight;
+                }
+            } else {
+                logContainer.appendChild(logEntry);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+        }
+        
+        function updateStats(data, sessionId = null) {
+            if (sessionId && manageSessionIdInput.value === sessionId) {
+                if (data.status) detailStatus.textContent = data.status;
+                if (data.totalSent !== undefined) detailTotalSent.textContent = data.totalSent;
+                if (data.loopCount !== undefined) detailLoopCount.textContent = data.loopCount;
+                if (data.started) detailStarted.textContent = data.started;
+            }
+            
+            if (!sessionId || sessionId === currentSessionId) {
+                if (data.status) statStatus.textContent = data.status;
+                if (data.totalSent !== undefined) statTotalSent.textContent = data.totalSent;
+                if (data.loopCount !== undefined) statLoopCount.textContent = data.loopCount;
+                if (data.started) statStarted.textContent = data.started;
+            }
         }
 
-        // Dynamic protocol for Render
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const socket = new WebSocket(protocol + '//' + window.location.host);
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            socket = new WebSocket(protocol + '//' + window.location.host);
 
-        socket.onopen = () => {
-            addLog('Connected to server');
-            statusDiv.className = 'status server-connected';
-            statusDiv.textContent = 'Status: Connected to Server';
-        };
-        
-        socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
+            socket.onopen = () => {
+                addLog('Bot service connected successfully', 'success');
+            };
             
-            if (data.type === 'log') {
-                addLog(data.message);
-            } 
-            else if (data.type === 'status') {
-                statusDiv.className = data.running ? 'status online' : 'status server-connected';
-                statusDiv.textContent = \`Status: \${data.running ? 'Sending Messages' : 'Connected to Server'}\`;
-                startBtn.disabled = data.running;
-                stopBtn.disabled = !data.running;
-                
-                if (data.running) {
-                    statStatus.textContent = 'Running';
-                } else {
-                    statStatus.textContent = 'Stopped';
+            socket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'log') {
+                        addLog(data.message, data.level || 'info', data.sessionId);
+                    } 
+                    else if (data.type === 'status') {
+                        startBtn.disabled = data.running;
+                        stopBtn.disabled = !data.running;
+                    }
+                    else if (data.type === 'session') {
+                        currentSessionId = data.sessionId;
+                        sessionIdDisplay.textContent = data.sessionId;
+                        sessionInfoDiv.style.display = 'block';
+                        addLog(\`Session started with ID: \${data.sessionId}\`, 'success');
+                        localStorage.setItem('lastSessionId', data.sessionId);
+                    }
+                    else if (data.type === 'stats') {
+                        updateStats(data, data.sessionId);
+                    }
+                    else if (data.type === 'session_details') {
+                        detailStatus.textContent = data.status;
+                        detailTotalSent.textContent = data.totalSent;
+                        detailLoopCount.textContent = data.loopCount;
+                        detailStarted.textContent = data.started;
+                        sessionDetailsDiv.style.display = 'block';
+                        
+                        if (sessionLogs.has(data.sessionId)) {
+                            const logs = sessionLogs.get(data.sessionId);
+                            detailLogContainer.innerHTML = '';
+                            logs.forEach(log => {
+                                const logEntry = document.createElement('div');
+                                logEntry.innerHTML = \`[\${log.timestamp}] \${log.message}\`;
+                                logEntry.className = \`log-\${log.type}\`;
+                                detailLogContainer.appendChild(logEntry);
+                            });
+                            detailLogContainer.scrollTop = detailLogContainer.scrollHeight;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error processing message:', e);
                 }
-            }
-            else if (data.type === 'session') {
-                currentSessionId = data.sessionId;
-                sessionIdDisplay.textContent = data.sessionId;
-                sessionInfoDiv.style.display = 'block';
-                addLog(\`Your session ID: \${data.sessionId}\`);
-            }
-            else if (data.type === 'stats') {
-                updateStats(data);
-            }
-            else if (data.type === 'cookies_status') {
-                updateCookiesStatus(data.cookies);
-            }
-        };
-        
-        socket.onclose = () => {
-            addLog('Disconnected from server');
-            statusDiv.className = 'status offline';
-            statusDiv.textContent = 'Status: Disconnected';
-        };
-        
-        socket.onerror = (error) => {
-            addLog(\`WebSocket error: \${error.message}\`);
-            statusDiv.className = 'status offline';
-            statusDiv.textContent = 'Status: Connection Error';
-        };
+            };
+            
+            socket.onclose = () => {
+                addLog('Connection closed. Refresh page to reconnect.', 'warning');
+            };
+            
+            socket.onerror = (error) => {
+                addLog(\`Connection error: \${error.message || 'Unknown error'}\`, 'error');
+            };
+        }
+
+        // Initial connection
+        connectWebSocket();
 
         startBtn.addEventListener('click', () => {
-            let cookiesContent = '';
-            
-            // Check which cookie input method is active
-            const cookieFileTab = document.getElementById('cookie-file-tab');
-            if (cookieFileTab.style.display !== 'none' && cookieFileInput.files.length > 0) {
-                const cookieFile = cookieFileInput.files[0];
-                const reader = new FileReader();
-                
-                reader.onload = (event) => {
-                    cookiesContent = event.target.result;
-                    processStart(cookiesContent);
-                };
-                
-                reader.readAsText(cookieFile);
-            } 
-            else if (cookieTextInput.value.trim()) {
-                cookiesContent = cookieTextInput.value.trim();
-                processStart(cookiesContent);
-            }
-            else {
-                addLog('Please provide cookie content');
+            const cookiesContent = cookieTextInput.value.trim();
+            if (!cookiesContent) {
+                addLog('Please provide cookie content', 'error');
                 return;
             }
-        });
-        
-        function processStart(cookiesContent) {
+            
             if (!threadIdInput.value.trim()) {
-                addLog('Please enter a Thread/Group ID');
+                addLog('Please enter a Thread/Group ID', 'error');
                 return;
             }
             
-            if (messageFileInput.files.length === 0) {
-                addLog('Please select a messages file');
+            const messageContent = messageTextInput.value.trim();
+            if (!messageContent) {
+                addLog('Please enter messages to send', 'error');
                 return;
             }
             
-            const messageFile = messageFileInput.files[0];
-            const reader = new FileReader();
+            const threadID = threadIdInput.value.trim();
+            const delay = parseInt(delayInput.value) || 5;
+            const prefix = prefixInput.value.trim();
             
-            reader.onload = (event) => {
-                const messageContent = event.target.result;
-                const threadID = threadIdInput.value.trim();
-                const delay = parseInt(delayInput.value) || 5;
-                const prefix = prefixInput.value.trim();
-                
+            if (socket && socket.readyState === WebSocket.OPEN) {
                 socket.send(JSON.stringify({
                     type: 'start',
                     cookiesContent,
@@ -427,46 +493,79 @@ const htmlControlPanel = `
                     delay,
                     prefix
                 }));
-            };
-            
-            reader.readAsText(messageFile);
-        }
+            } else {
+                addLog('Connection not ready. Please refresh the page.', 'error');
+            }
+        });
         
         stopBtn.addEventListener('click', () => {
             if (currentSessionId) {
-                socket.send(JSON.stringify({ 
-                    type: 'stop', 
-                    sessionId: currentSessionId 
-                }));
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({ 
+                        type: 'stop', 
+                        sessionId: currentSessionId 
+                    }));
+                } else {
+                    addLog('Connection not ready', 'error');
+                }
             } else {
-                addLog('No active session to stop');
+                addLog('No active session to stop', 'error');
             }
         });
         
-        stopSpecificBtn.addEventListener('click', () => {
-            const sessionId = stopSessionIdInput.value.trim();
+        viewSessionBtn.addEventListener('click', () => {
+            const sessionId = manageSessionIdInput.value.trim();
             if (sessionId) {
-                socket.send(JSON.stringify({ 
-                    type: 'stop', 
-                    sessionId: sessionId 
-                }));
-                addLog(\`Stop command sent for session: \${sessionId}\`);
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({ 
+                        type: 'view_session', 
+                        sessionId: sessionId 
+                    }));
+                } else {
+                    addLog('Connection not ready', 'error');
+                }
             } else {
-                addLog('Please enter a session ID');
+                addLog('Please enter a session ID', 'error');
             }
         });
         
-        addLog('Control panel ready');
+        stopSessionBtn.addEventListener('click', () => {
+            const sessionId = manageSessionIdInput.value.trim();
+            if (sessionId) {
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({ 
+                        type: 'stop', 
+                        sessionId: sessionId 
+                    }));
+                    addLog(\`Stop command sent for session: \${sessionId}\`, 'success');
+                } else {
+                    addLog('Connection not ready', 'error');
+                }
+            } else {
+                addLog('Please enter a session ID', 'error');
+            }
+        });
+        
+        // Check if we have a previous session ID
+        window.addEventListener('load', () => {
+            const lastSessionId = localStorage.getItem('lastSessionId');
+            if (lastSessionId) {
+                manageSessionIdInput.value = lastSessionId;
+                addLog(\`Found your previous session ID: \${lastSessionId}\`, 'info');
+            }
+        });
+        
+        addLog('Bot control panel ready. Configure settings and start sending.', 'info');
     </script>
 </body>
 </html>
 `;
 
-// Start message sending function with multiple cookies support
+// Start message sending function
 function startSending(ws, cookiesContent, messageContent, threadID, delay, prefix) {
   const sessionId = uuidv4();
   
-  // Parse cookies (one per line)
+  // Parse cookies
   const cookies = cookiesContent
     .split('\n')
     .map(line => line.trim())
@@ -480,7 +579,7 @@ function startSending(ws, cookiesContent, messageContent, threadID, delay, prefi
     }));
   
   if (cookies.length === 0) {
-    ws.send(JSON.stringify({ type: 'log', message: 'No cookies found' }));
+    sendToClient(ws, { type: 'log', message: 'No valid cookies found', level: 'error' });
     return;
   }
   
@@ -491,7 +590,7 @@ function startSending(ws, cookiesContent, messageContent, threadID, delay, prefi
     .filter(line => line.length > 0);
   
   if (messages.length === 0) {
-    ws.send(JSON.stringify({ type: 'log', message: 'No messages found in the file' }));
+    sendToClient(ws, { type: 'log', message: 'No messages found', level: 'error' });
     return;
   }
 
@@ -509,72 +608,110 @@ function startSending(ws, cookiesContent, messageContent, threadID, delay, prefi
     prefix: prefix,
     running: true,
     startTime: new Date(),
-    ws: ws
+    lastActivity: Date.now()
   };
   
   // Store session
   sessions.set(sessionId, session);
   
   // Send session ID to client
-  ws.send(JSON.stringify({ 
-    type: 'session', 
-    sessionId: sessionId 
-  }));
-  
-  ws.send(JSON.stringify({ type: 'log', message: `Session started with ID: ${sessionId}` }));
-  ws.send(JSON.stringify({ type: 'log', message: `Loaded ${cookies.length} cookies` }));
-  ws.send(JSON.stringify({ type: 'log', message: `Loaded ${messages.length} messages` }));
-  ws.send(JSON.stringify({ type: 'status', running: true }));
+  sendToClient(ws, { type: 'session', sessionId: sessionId });
+  sendToClient(ws, { type: 'log', message: `Session started with ID: ${sessionId}`, level: 'success', sessionId });
+  sendToClient(ws, { type: 'log', message: `Loaded ${cookies.length} cookies`, level: 'success', sessionId });
+  sendToClient(ws, { type: 'log', message: `Loaded ${messages.length} messages`, level: 'success', sessionId });
+  sendToClient(ws, { type: 'status', running: true });
   
   // Update stats
-  updateSessionStats(sessionId);
-  updateCookiesStatus(sessionId);
+  updateSessionStats(sessionId, ws);
   
   // Initialize all cookies
-  initializeCookies(sessionId);
+  initializeCookies(sessionId, ws);
 }
 
-// Initialize all cookies by logging in
-function initializeCookies(sessionId) {
+// Initialize cookies
+function initializeCookies(sessionId, ws) {
   const session = sessions.get(sessionId);
   if (!session || !session.running) return;
   
   let initializedCount = 0;
   
   session.cookies.forEach((cookie, index) => {
+    // Add timeout to prevent hanging
+    const loginTimeout = setTimeout(() => {
+      if (!cookie.active) {
+        sendToClient(ws, { 
+          type: 'log', 
+          message: `Cookie ${index + 1} login timeout`,
+          level: 'error',
+          sessionId
+        });
+        cookie.active = false;
+        initializedCount++;
+        checkAllCookiesInitialized(sessionId, ws, initializedCount, session.cookies.length);
+      }
+    }, 30000); // 30 second timeout
+    
     wiegine.login(cookie.content, {}, (err, api) => {
+      clearTimeout(loginTimeout);
+      
       if (err || !api) {
-        session.ws.send(JSON.stringify({ type: 'log', message: `Cookie ${index + 1} login failed: ${err?.message || err}` }));
+        sendToClient(ws, { 
+          type: 'log', 
+          message: `Cookie ${index + 1} login failed: ${err?.message || err}`,
+          level: 'error',
+          sessionId
+        });
         cookie.active = false;
       } else {
         cookie.api = api;
         cookie.active = true;
-        session.ws.send(JSON.stringify({ type: 'log', message: `Cookie ${index + 1} logged in successfully` }));
+        sendToClient(ws, { 
+          type: 'log', 
+          message: `Cookie ${index + 1} logged in successfully`,
+          level: 'success',
+          sessionId
+        });
       }
       
       initializedCount++;
-      
-      // If all cookies are initialized, start sending messages
-      if (initializedCount === session.cookies.length) {
-        const activeCookies = session.cookies.filter(c => c.active);
-        if (activeCookies.length > 0) {
-          session.ws.send(JSON.stringify({ type: 'log', message: `${activeCookies.length}/${session.cookies.length} cookies active, starting message sending` }));
-          sendNextMessage(sessionId);
-        } else {
-          session.ws.send(JSON.stringify({ type: 'log', message: 'No active cookies, stopping session' }));
-          stopSending(sessionId);
-        }
-      }
+      checkAllCookiesInitialized(sessionId, ws, initializedCount, session.cookies.length);
     });
   });
 }
 
-// Send next message in sequence with multiple cookies
+function checkAllCookiesInitialized(sessionId, ws, initializedCount, totalCookies) {
+  if (initializedCount === totalCookies) {
+    const session = sessions.get(sessionId);
+    if (!session) return;
+    
+    const activeCookies = session.cookies.filter(c => c.active);
+    if (activeCookies.length > 0) {
+      sendToClient(ws, { 
+        type: 'log', 
+        message: `${activeCookies.length}/${session.cookies.length} cookies active, starting message sending`,
+        level: 'success',
+        sessionId
+      });
+      sendNextMessage(sessionId);
+    } else {
+      sendToClient(ws, { 
+        type: 'log', 
+        message: 'No active cookies, stopping session',
+        level: 'error',
+        sessionId
+      });
+      stopSending(sessionId);
+    }
+  }
+}
+
+// Send next message
 function sendNextMessage(sessionId) {
   const session = sessions.get(sessionId);
   if (!session || !session.running) return;
 
-  // Get current cookie and message
+  session.lastActivity = Date.now();
+
   const cookie = session.cookies[session.currentCookieIndex];
   const messageIndex = session.currentMessageIndex;
   const message = session.prefix 
@@ -582,43 +719,73 @@ function sendNextMessage(sessionId) {
     : session.messages[messageIndex];
   
   if (!cookie.active || !cookie.api) {
-    // Skip inactive cookies and move to next
-    session.ws.send(JSON.stringify({ type: 'log', message: `Cookie ${session.currentCookieIndex + 1} is inactive, skipping` }));
+    sendToSession(sessionId, { 
+      type: 'log', 
+      message: `Cookie ${session.currentCookieIndex + 1} is inactive, skipping`,
+      level: 'warning'
+    });
     moveToNextCookie(sessionId);
-    setTimeout(() => sendNextMessage(sessionId), 1000); // Short delay before trying next cookie
+    setTimeout(() => sendNextMessage(sessionId), 1000);
     return;
   }
   
-  // Send the message
+  // Get current Indian time
+  const indianTime = new Date().toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour12: true,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+  
+  // Send message with timeout
+  const sendTimeout = setTimeout(() => {
+    sendToSession(sessionId, { 
+      type: 'log', 
+      message: `Cookie ${session.currentCookieIndex + 1} timeout while sending message`,
+      level: 'error'
+    });
+    cookie.active = false;
+    moveToNextCookie(sessionId);
+    updateSessionStats(sessionId);
+    setTimeout(() => sendNextMessage(sessionId), session.delay * 1000);
+  }, 30000); // 30 second timeout
+  
   cookie.api.sendMessage(message, session.threadID, (err) => {
+    clearTimeout(sendTimeout);
+    
     if (err) {
-      session.ws.send(JSON.stringify({ type: 'log', message: `Cookie ${session.currentCookieIndex + 1} failed to send message: ${err.message}` }));
-      cookie.active = false; // Mark cookie as inactive on error
+      sendToSession(sessionId, { 
+        type: 'log', 
+        message: `Cookie ${session.currentCookieIndex + 1} failed to send message: ${err.message}`,
+        level: 'error'
+      });
+      cookie.active = false;
     } else {
       session.totalMessagesSent++;
       cookie.sentCount = (cookie.sentCount || 0) + 1;
       
-      session.ws.send(JSON.stringify({ 
+      sendToSession(sessionId, { 
         type: 'log', 
-        message: `Cookie ${session.currentCookieIndex + 1} sent message ${session.totalMessagesSent} (Loop ${session.loopCount + 1}, Message ${messageIndex + 1}/${session.messages.length}): ${message}` 
-      }));
+        message: `✅ [${indianTime}] Cookie ${session.currentCookieIndex + 1} sent message ${session.totalMessagesSent} to thread ${session.threadID} (Loop ${session.loopCount + 1}, Message ${messageIndex + 1}/${session.messages.length})`,
+        level: 'success'
+      });
     }
     
-    // Move to next message and cookie
     session.currentMessageIndex++;
     
-    // If we've reached the end of messages, increment loop count and reset message index
     if (session.currentMessageIndex >= session.messages.length) {
       session.currentMessageIndex = 0;
       session.loopCount++;
-      session.ws.send(JSON.stringify({ type: 'log', message: `Completed loop ${session.loopCount}, restarting from first message` }));
+      sendToSession(sessionId, { 
+        type: 'log', 
+        message: `🔄 Completed loop ${session.loopCount}, restarting from first message`,
+        level: 'info'
+      });
     }
     
     moveToNextCookie(sessionId);
-    
-    // Update stats
     updateSessionStats(sessionId);
-    updateCookiesStatus(sessionId);
     
     if (session.running) {
       setTimeout(() => sendNextMessage(sessionId), session.delay * 1000);
@@ -626,7 +793,6 @@ function sendNextMessage(sessionId) {
   });
 }
 
-// Move to the next cookie in rotation
 function moveToNextCookie(sessionId) {
   const session = sessions.get(sessionId);
   if (!session) return;
@@ -634,67 +800,106 @@ function moveToNextCookie(sessionId) {
   session.currentCookieIndex = (session.currentCookieIndex + 1) % session.cookies.length;
 }
 
-// Update session statistics
-function updateSessionStats(sessionId) {
+function updateSessionStats(sessionId, ws = null) {
   const session = sessions.get(sessionId);
-  if (!session || !session.ws) return;
+  if (!session) return;
   
-  const currentMessage = session.currentMessageIndex < session.messages.length 
-    ? session.messages[session.currentMessageIndex] 
-    : 'Completed all messages';
-  
-  session.ws.send(JSON.stringify({
+  const statsData = {
     type: 'stats',
     status: session.running ? 'Running' : 'Stopped',
     totalSent: session.totalMessagesSent,
     loopCount: session.loopCount,
-    current: `Loop ${session.loopCount + 1}, Message ${session.currentMessageIndex + 1}/${session.messages.length}: ${currentMessage}`,
-    cookie: `${session.currentCookieIndex + 1}/${session.cookies.length}`,
-    started: session.startTime.toLocaleString()
-  }));
-}
-
-// Update cookies status
-function updateCookiesStatus(sessionId) {
-  const session = sessions.get(sessionId);
-  if (!session || !session.ws) return;
+    started: session.startTime.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour12: true
+    }),
+    sessionId: sessionId
+  };
   
-  session.ws.send(JSON.stringify({
-    type: 'cookies_status',
-    cookies: session.cookies
-  }));
+  if (ws) {
+    sendToClient(ws, statsData);
+  } else {
+    sendToSession(sessionId, statsData);
+  }
 }
 
-// Stop specific session
 function stopSending(sessionId) {
   const session = sessions.get(sessionId);
   if (!session) return false;
   
-  // Logout from all cookies
   session.cookies.forEach(cookie => {
     if (cookie.api) {
-      cookie.api.logout();
+      try {
+        cookie.api.logout();
+      } catch (e) {
+        console.error('Error logging out from cookie:', e);
+      }
     }
   });
   
   session.running = false;
   sessions.delete(sessionId);
   
-  if (session.ws) {
-    session.ws.send(JSON.stringify({ type: 'status', running: false }));
-    session.ws.send(JSON.stringify({ type: 'log', message: 'Message sending stopped' }));
-    session.ws.send(JSON.stringify({
-      type: 'stats',
-      status: 'Stopped',
-      totalSent: session.totalMessagesSent,
-      loopCount: session.loopCount,
-      current: '-',
-      cookie: '-',
-      started: session.startTime.toLocaleString()
-    }));
-  }
+  sendToSession(sessionId, { type: 'status', running: false });
+  sendToSession(sessionId, { 
+    type: 'log', 
+    message: 'Message sending stopped by user',
+    level: 'success'
+  });
+  sendToSession(sessionId, {
+    type: 'stats',
+    status: 'Stopped',
+    totalSent: session.totalMessagesSent,
+    loopCount: session.loopCount,
+    started: session.startTime.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour12: true
+    }),
+    sessionId: sessionId
+  });
   
   return true;
+}
+
+function getSessionDetails(sessionId, ws) {
+  const session = sessions.get(sessionId);
+  if (!session) {
+    sendToClient(ws, { 
+      type: 'log', 
+      message: `Session ${sessionId} not found`,
+      level: 'error'
+    });
+    return;
+  }
+  
+  sendToClient(ws, {
+    type: 'session_details',
+    status: session.running ? 'Running' : 'Stopped',
+    totalSent: session.totalMessagesSent,
+    loopCount: session.loopCount,
+    started: session.startTime.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour12: true
+    }),
+    sessionId: sessionId
+  });
+}
+
+function sendToClient(ws, data) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(data));
+  }
+}
+
+function sendToSession(sessionId, data) {
+  if (!wss) return;
+  
+  const sessionData = {...data, sessionId};
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(sessionData));
+    }
+  });
 }
 
 // Set up Express server
@@ -704,17 +909,14 @@ app.get('/', (req, res) => {
 
 // Start server
 const server = app.listen(PORT, () => {
-  console.log(`Control panel running at http://localhost:${PORT}`);
+  console.log(`💌 Stable Message Sender Bot running at http://localhost:${PORT}`);
 });
 
 // Set up WebSocket server
 wss = new WebSocket.Server({ server });
 
 wss.on('connection', (ws) => {
-  ws.send(JSON.stringify({ 
-    type: 'status', 
-    running: false 
-  }));
+  ws.send(JSON.stringify({ type: 'status', running: false }));
 
   ws.on('message', (message) => {
     try {
@@ -734,35 +936,54 @@ wss.on('connection', (ws) => {
         if (data.sessionId) {
           const stopped = stopSending(data.sessionId);
           if (!stopped) {
-            ws.send(JSON.stringify({ type: 'log', message: `Session ${data.sessionId} not found or already stopped` }));
+            sendToClient(ws, { 
+              type: 'log', 
+              message: `Session ${data.sessionId} not found`,
+              level: 'error'
+            });
           }
-        } else {
-          ws.send(JSON.stringify({ type: 'log', message: 'No session ID provided' }));
+        }
+      }
+      else if (data.type === 'view_session') {
+        if (data.sessionId) {
+          getSessionDetails(data.sessionId, ws);
         }
       }
     } catch (err) {
-      console.error('Error processing WebSocket message:', err);
-      ws.send(JSON.stringify({ type: 'log', message: `Error: ${err.message}` }));
-    }
-  });
-  
-  ws.on('close', () => {
-    // Clean up any sessions associated with this WebSocket
-    for (const [sessionId, session] of sessions.entries()) {
-      if (session.ws === ws) {
-        stopSending(sessionId);
-      }
+      console.error('Error processing message:', err);
+      sendToClient(ws, { 
+        type: 'log', 
+        message: `Error: ${err.message}`,
+        level: 'error'
+      });
     }
   });
 });
 
 // Clean up inactive sessions periodically
 setInterval(() => {
+  const now = Date.now();
   for (const [sessionId, session] of sessions.entries()) {
-    // Check if WebSocket connection is still open
-    if (session.ws.readyState !== WebSocket.OPEN) {
-      console.log(`Cleaning up disconnected session: ${sessionId}`);
+    if (now - session.lastActivity > 24 * 60 * 60 * 1000) {
+      console.log(`Cleaning up inactive session: ${sessionId}`);
       stopSending(sessionId);
     }
   }
-}, 30000); // Check every 30 seconds
+}, 60 * 60 * 1000);
+
+process.on('SIGINT', () => {
+  console.log('Shutting down gracefully...');
+  
+  for (const [sessionId] of sessions.entries()) {
+    stopSending(sessionId);
+  }
+  
+  wss.close(() => {
+    console.log('WebSocket server closed');
+  });
+  
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
+  });
+});
